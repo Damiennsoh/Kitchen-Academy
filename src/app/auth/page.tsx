@@ -74,16 +74,18 @@ export default function AuthPage() {
         });
         if (error) throw error;
 
-        // Check if student profile exists
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Authentication could not be completed");
+
         const { data: existing } = await supabase
           .from("students")
           .select("id")
-          .eq("phone", formattedPhone)
-          .single();
+          .eq("id", user.id)
+          .maybeSingle();
 
         if (!existing) {
           setUserExists(false);
-          setMessage("Please complete your profile.");
+          setMessage("OTP verified. Complete your profile below.");
         } else {
           setUserExists(true);
           setMessage("Welcome back! Redirecting...");
@@ -104,13 +106,13 @@ export default function AuthPage() {
       if (!user) throw new Error("Not authenticated");
 
       const formattedPhone = formatPhone(phone);
-      const { error } = await supabase.from("students").insert({
+      const { error } = await supabase.from("students").upsert({
         id: user.id,
         full_name: fullName,
         phone: formattedPhone,
-        email: email || null,
+        email: user.email || email || null,
         whatsapp_opt_in: true,
-      });
+      }, { onConflict: "id" });
 
       if (error) throw error;
       setMessage("Profile created! Redirecting...");
@@ -224,7 +226,11 @@ export default function AuthPage() {
               </div>
 
               <button
-                onClick={userExists ? verifyOTP : createProfile}
+                onClick={userExists ? verifyOTP : async () => {
+                  await verifyOTP();
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user && fullName) await createProfile();
+                }}
                 disabled={loading || (!userExists && !fullName) || !otp}
                 className="w-full flex items-center justify-center gap-2 py-4 bg-brand-500 text-white font-semibold rounded-xl hover:bg-brand-600 transition-colors disabled:opacity-50"
               >
