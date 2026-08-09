@@ -20,6 +20,8 @@ export default function ClassesPage() {
     const { data } = await supabase
       .from("classes")
       .select("*")
+      .eq("is_published", true)
+      .is("archived_at", null)
       .order("class_date", { ascending: true });
     setClasses(data || []);
     setLoading(false);
@@ -105,7 +107,7 @@ export default function ClassesPage() {
                   </div>
 
                   <Link
-                    href={`/register?class=${cls.id}`}
+                    href={cls.share_slug ? `/class/${cls.share_slug}` : `/register?class=${cls.id}`}
                     className="flex items-center justify-center gap-2 w-full py-3.5 bg-gray-900 text-white font-semibold rounded-xl hover:bg-brand-500 transition-colors"
                   >
                     Register Now

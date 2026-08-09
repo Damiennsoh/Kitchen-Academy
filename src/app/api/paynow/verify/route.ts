@@ -13,13 +13,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (demo) {
-      // DEMO: Auto-mark as paid for testing
-      await supabaseServer
-        .from("registrations")
-        .update({ paid: true, payment_method: "ecocash", payment_reference: `DEMO-${Date.now()}` })
-        .eq("id", regId);
-
-      return NextResponse.json({ success: true, paid: true, demo: true });
+      return NextResponse.json(
+        { success: false, paid: false, message: "Demo payment verification is disabled." },
+        { status: 501 },
+      );
     }
 
     // Production: Poll Paynow for status

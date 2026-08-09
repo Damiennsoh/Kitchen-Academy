@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase";
+import { requireAdmin } from "@/lib/auth";
 
 // POST /api/certificates/generate
 // Body: { registrationId }
 // Generates a certificate and returns a data URL for download
 export async function POST(req: NextRequest) {
+  const { response: authResponse } = await requireAdmin(req);
+  if (authResponse.status === 403) return authResponse;
+
   try {
     const { registrationId } = await req.json();
 

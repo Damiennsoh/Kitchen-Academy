@@ -1,274 +1,114 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { createClientBrowser } from "@/lib/supabase";
-import { Phone, Mail, Loader2, CheckCircle, ArrowRight } from "lucide-react";
+import { ArrowRight, CheckCircle, Loader2, LockKeyhole, Mail, UserRound } from "lucide-react";
 import Link from "next/link";
 
 export default function AuthPage() {
-  const [mode, setMode] = useState<"phone" | "email">("phone");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [userExists, setUserExists] = useState(false);
-
+  const [success, setSuccess] = useState(false);
   const supabase = createClientBrowser();
 
-  const formatPhone = (input: string) => {
-    let cleaned = input.replace(/\s/g, "").replace(/-/g, "");
-    if (cleaned.startsWith("0")) cleaned = "+263" + cleaned.slice(1);
-    if (!cleaned.startsWith("+") && cleaned.length > 0) cleaned = "+263" + cleaned;
-    return cleaned;
-  };
-
-  const sendOTP = async () => {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setLoading(true);
     setMessage("");
+    setSuccess(false);
+
     try {
-      if (mode === "phone") {
-        const formattedPhone = formatPhone(phone);
-        if (!formattedPhone || formattedPhone.length < 10) {
-          setMessage("Please enter a valid phone number");
-          return;
-        }
-        const { error } = await supabase.auth.signInWithOtp({
-          phone: formattedPhone,
-        });
-        if (error) throw error;
-        setOtpSent(true);
-        setMessage("OTP sent! Check your WhatsApp/SMS.");
-      } else {
-        if (!email || !email.includes("@")) {
-          setMessage("Please enter a valid email");
-          return;
-        }
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-        });
-        if (error) throw error;
-        setOtpSent(true);
-        setMessage("Magic link sent! Check your email inbox.");
-      }
-    } catch (err: any) {
-      setMessage(err.message || "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyOTP = async () => {
-    setLoading(true);
-    setMessage("");
-    try {
-      if (mode === "phone") {
-        const formattedPhone = formatPhone(phone);
-        const { data, error } = await supabase.auth.verifyOtp({
-          phone: formattedPhone,
-          token: otp,
-          type: "sms",
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ?? `${window.location.origin}/auth/callback`,
+            data: { full_name: fullName.trim() },
+          },
         });
         if (error) throw error;
 
-        // Check if student profile exists
-        const { data: existing } = await supabase
-          .from("students")
-          .select("id")
-          .eq("phone", formattedPhone)
-          .single();
-
-        if (!existing) {
-          setUserExists(false);
-          setMessage("Please complete your profile.");
-        } else {
-          setUserExists(true);
-          setMessage("Welcome back! Redirecting...");
+        if (data.session && data.user) {
+          await supabase.from("students").upsert({
+            id: data.user.id,
+            full_name: fullName.trim(),
+            email: email.trim(),
+            phone: null,
+          }, { onConflict: "id" });
           window.location.href = "/classes";
+          return;
         }
+
+        setSuccess(true);
+        setMessage("Your account is ready. Check your email to confirm your account, then sign in with your password.");
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) throw error;
+        if (data.user) {
+          await supabase.from("students").upsert({
+            id: data.user.id,
+            full_name: data.user.user_metadata?.full_name || email.split("@")[0],
+            email: data.user.email,
+            phone: null,
+          }, { onConflict: "id" });
+        }
+        window.location.href = "/classes";
       }
-    } catch (err: any) {
-      setMessage(err.message || "Invalid OTP");
+    } catch (error: any) {
+      const raw = String(error?.message || "");
+      setMessage(raw.toLowerCase().includes("confirm") ? "Please confirm your email before signing in." : "Invalid email or password. Please check your details and try again.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const createProfile = async () => {
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const formattedPhone = formatPhone(phone);
-      const { error } = await supabase.from("students").insert({
-        id: user.id,
-        full_name: fullName,
-        phone: formattedPhone,
-        email: email || null,
-        whatsapp_opt_in: true,
-      });
-
-      if (error) throw error;
-      setMessage("Profile created! Redirecting...");
-      window.location.href = "/classes";
-    } catch (err: any) {
-      setMessage(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-md mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Chipo&apos;s Kitchen</h1>
-          <p className="text-gray-600">Sign in to register for classes and track your progress.</p>
+    <main className="min-h-screen bg-gray-50 px-4 py-12">
+      <div className="mx-auto max-w-md">
+        <header className="mb-8 text-center">
+          <h1 className="mb-2 text-3xl font-bold text-gray-900">Welcome to Chipo&apos;s Kitchen</h1>
+          <p className="text-gray-600">Create an account to hear about upcoming classes.</p>
+        </header>
+
+        <div className="mb-6 flex rounded-2xl border border-gray-200 bg-white p-1.5 shadow-sm">
+          {(["signin", "signup"] as const).map((item) => (
+            <button key={item} type="button" onClick={() => { setMode(item); setMessage(""); setSuccess(false); }} className={`flex-1 rounded-xl py-3 text-sm font-semibold transition-colors ${mode === item ? "bg-brand-500 text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+              {item === "signin" ? "Sign in" : "Create account"}
+            </button>
+          ))}
         </div>
 
-        {/* Mode Toggle */}
-        <div className="bg-white rounded-2xl p-1.5 shadow-sm border border-gray-200 flex mb-6">
-          <button
-            onClick={() => { setMode("phone"); setOtpSent(false); setMessage(""); }}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-colors ${
-              mode === "phone" ? "bg-brand-500 text-white" : "text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            <Phone className="w-4 h-4" /> Phone
-          </button>
-          <button
-            onClick={() => { setMode("email"); setOtpSent(false); setMessage(""); }}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-colors ${
-              mode === "email" ? "bg-brand-500 text-white" : "text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            <Mail className="w-4 h-4" /> Email
-          </button>
-        </div>
+        <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex flex-col gap-5">
+            {mode === "signup" && (
+              <label className="flex flex-col gap-2 text-sm font-medium text-gray-700">
+                Full name
+                <span className="relative"><UserRound className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" /><input required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3.5 pl-12 pr-4 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" placeholder="Tariro Moyo" /></span>
+              </label>
+            )}
+            <label className="flex flex-col gap-2 text-sm font-medium text-gray-700">
+              Email address
+              <span className="relative"><Mail className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" /><input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3.5 pl-12 pr-4 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" placeholder="you@example.com" /></span>
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-medium text-gray-700">
+              Password
+              <span className="relative"><LockKeyhole className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" /><input required minLength={6} type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3.5 pl-12 pr-4 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" placeholder="At least 6 characters" /></span>
+            </label>
+            <button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-4 font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-50">
+              {loading ? <Loader2 className="size-5 animate-spin" /> : success ? <CheckCircle className="size-5" /> : <ArrowRight className="size-5" />}
+              {mode === "signin" ? "Sign in" : "Create account"}
+            </button>
+          </div>
+          {message && <div className={`mt-4 rounded-lg p-3 text-sm font-medium ${success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{message}</div>}
+        </form>
 
-        {/* Auth Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
-          {!otpSent ? (
-            <div className="space-y-5">
-              {mode === "phone" ? (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                  <div className="relative">
-                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="0771 234 567"
-                      className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">Enter your Zimbabwe number. We&apos;ll send an OTP via WhatsApp/SMS.</p>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">We&apos;ll send you a magic link to sign in instantly.</p>
-                </div>
-              )}
-
-              <button
-                onClick={sendOTP}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-brand-500 text-white font-semibold rounded-xl hover:bg-brand-600 transition-colors disabled:opacity-50"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
-                {mode === "phone" ? "Send OTP" : "Send Magic Link"}
-              </button>
-            </div>
-          ) : mode === "phone" ? (
-            <div className="space-y-5">
-              {!userExists && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Tariro Moyo"
-                    className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Enter OTP</label>
-                <input
-                  type="text"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="123456"
-                  maxLength={6}
-                  className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 text-center text-2xl tracking-[0.5em] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
-
-              <button
-                onClick={userExists ? verifyOTP : createProfile}
-                disabled={loading || (!userExists && !fullName) || !otp}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-brand-500 text-white font-semibold rounded-xl hover:bg-brand-600 transition-colors disabled:opacity-50"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
-                {userExists ? "Verify & Sign In" : "Create Account"}
-              </button>
-
-              <button
-                onClick={() => setOtpSent(false)}
-                className="w-full text-center text-sm text-gray-500 hover:text-brand-600"
-              >
-                Didn&apos;t receive it? Send again
-              </button>
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Check Your Email!</h3>
-              <p className="text-gray-600">We&apos;ve sent a magic link to {email}. Click it to sign in instantly.</p>
-              <button
-                onClick={() => setOtpSent(false)}
-                className="mt-6 text-brand-600 font-medium hover:underline"
-              >
-                Use a different email
-              </button>
-            </div>
-          )}
-
-          {message && (
-            <div className={`mt-4 p-3 rounded-lg text-sm font-medium ${
-              message.includes("sent") || message.includes("created") || message.includes("Welcome")
-                ? "bg-green-50 text-green-700"
-                : "bg-red-50 text-red-700"
-            }`}>
-              {message}
-            </div>
-          )}
-        </div>
-
-        <p className="text-center text-sm text-gray-500 mt-6">
-          By signing in, you agree to receive class reminders via WhatsApp.{" "}
-          <Link href="#" className="text-brand-600 hover:underline">Privacy Policy</Link>
-        </p>
+        <p className="mt-6 text-center text-sm text-gray-500">Your account is separate from class registration. <Link href="/classes" className="text-brand-600 hover:underline">Browse classes</Link></p>
       </div>
-    </div>
+    </main>
   );
 }
