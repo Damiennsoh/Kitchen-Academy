@@ -1,7 +1,9 @@
 export interface Student {
   id: string;
   full_name: string;
-  phone: string;
+  phone?: string | null;
+  country?: string | null;
+  is_student?: boolean;
   email?: string;
   whatsapp_opt_in: boolean;
   created_at: string;
@@ -20,6 +22,11 @@ export interface Class {
   status: "upcoming" | "live" | "completed" | "cancelled";
   is_live: boolean;
   video_url?: string;
+  zoom_link?: string;
+  share_slug?: string | null;
+  is_published?: boolean;
+  archived_at?: string | null;
+  timezone?: string;
   created_at: string;
 }
 

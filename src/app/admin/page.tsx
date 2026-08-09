@@ -56,7 +56,7 @@ export default function AdminPage() {
     ? filteredRegs.filter(
         (r) =>
           r.student.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.student.phone.includes(searchQuery) ||
+          (r.student.phone || "").includes(searchQuery) ||
           r.class.title.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : filteredRegs;
@@ -76,6 +76,21 @@ export default function AdminPage() {
       setSelectedStudents(new Set(searchedRegs.map((r) => r.student_id)));
     }
     setSelectAll(!selectAll);
+  }
+
+  async function promoteToStudent(student: Student) {
+    await supabase.from("students").update({ is_student: !student.is_student }).eq("id", student.id);
+    await fetchAllData();
+  }
+
+  async function toggleClassArchive(cls: Class) {
+    const archived = Boolean(cls.archived_at);
+    await supabase.from("classes").update({
+      is_published: archived,
+      archived_at: archived ? null : new Date().toISOString(),
+      status: archived ? "upcoming" : "completed",
+    }).eq("id", cls.id);
+    await fetchAllData();
   }
 
   // Mark attendance
@@ -320,7 +335,7 @@ export default function AdminPage() {
                           <td className="px-4 py-3">
                             <div className="font-medium text-gray-900 text-sm">{reg.student.full_name}</div>
                             <div className="text-xs text-gray-500 flex items-center gap-1">
-                              <Phone className="w-3 h-3" /> {reg.student.phone}
+                              <Phone className="w-3 h-3" /> {reg.student.phone || "No phone added"}
                             </div>
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-700">{reg.class.title}</td>
@@ -397,6 +412,7 @@ export default function AdminPage() {
                           <td className="px-4 py-3 text-sm text-gray-600">{s.email || "—"}</td>
                           <td className="px-4 py-3 text-sm text-gray-600">{studentRegs.length}</td>
                           <td className="px-4 py-3 text-sm text-gray-500">{formatDate(s.created_at)}</td>
+                          <td className="px-4 py-3"><button onClick={() => promoteToStudent(s)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500 hover:text-brand-600">{s.is_student ? "Remove from students" : "Add to students"}</button></td>
                         </tr>
                       );
                     })}
@@ -418,9 +434,13 @@ export default function AdminPage() {
                       <div className="flex gap-4 mt-3 text-sm">
                         <span className="text-gray-600">{classRegs.length} registered</span>
                         <span className="text-green-600">{paidCount} paid</span>
-                        <span className="font-medium">{formatCurrency(c.price, c.currency)}</span>
-                      </div>
-                    </div>
+  <span className="font-medium">{formatCurrency(c.price, c.currency)}</span>
+  </div>
+  <div className="mt-4 flex items-center justify-between gap-3">
+    <span className={`text-xs font-semibold ${c.archived_at ? "text-gray-500" : "text-green-600"}`}>{c.archived_at ? "Archived" : "Published on homepage"}</span>
+    <button onClick={() => toggleClassArchive(c)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500 hover:text-brand-600">{c.archived_at ? "Republish" : "Archive class"}</button>
+  </div>
+  </div>
                   );
                 })}
               </div>
