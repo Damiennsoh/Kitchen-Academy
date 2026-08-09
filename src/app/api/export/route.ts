@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase";
+import { requireAdmin } from "@/lib/auth";
 
 // GET /api/export?type=students|registrations|orders&format=csv|json
 export async function GET(req: NextRequest) {
+  const { response: authResponse } = await requireAdmin(req);
+  if (authResponse.status === 403) return authResponse;
+
   try {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "students";
