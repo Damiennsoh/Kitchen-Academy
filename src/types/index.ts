@@ -25,6 +25,7 @@ export interface Class {
   zoom_link?: string;
   share_slug?: string | null;
   is_published?: boolean;
+  join_enabled?: boolean;
   archived_at?: string | null;
   timezone?: string;
   created_at: string;

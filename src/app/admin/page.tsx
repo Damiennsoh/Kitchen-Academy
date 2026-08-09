@@ -83,6 +83,17 @@ export default function AdminPage() {
     await fetchAllData();
   }
 
+  async function toggleJoinEnabled(cls: Class) {
+    await supabase.from("classes").update({ join_enabled: !cls.join_enabled }).eq("id", cls.id);
+    await fetchAllData();
+  }
+
+  async function copyClassLink(cls: Class) {
+    if (!cls.share_slug) return;
+    await navigator.clipboard.writeText(`${window.location.origin}/class/${cls.share_slug}`);
+    alert("Class link copied");
+  }
+
   async function toggleClassArchive(cls: Class) {
     const archived = Boolean(cls.archived_at);
     await supabase.from("classes").update({
@@ -438,6 +449,8 @@ export default function AdminPage() {
   </div>
   <div className="mt-4 flex items-center justify-between gap-3">
     <span className={`text-xs font-semibold ${c.archived_at ? "text-gray-500" : "text-green-600"}`}>{c.archived_at ? "Archived" : "Published on homepage"}</span>
+    <button onClick={() => toggleJoinEnabled(c)} className={`rounded-lg px-3 py-2 text-xs font-semibold ${c.join_enabled ? "bg-brand-500 text-white" : "border border-gray-200 bg-white text-gray-700"}`}>{c.join_enabled ? "Join active" : "Enable Join"}</button>
+    <button onClick={() => copyClassLink(c)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500 hover:text-brand-600">Copy link</button>
     <button onClick={() => toggleClassArchive(c)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500 hover:text-brand-600">{c.archived_at ? "Republish" : "Archive class"}</button>
   </div>
   </div>
