@@ -106,13 +106,17 @@ export default function ClassesPage() {
                     </div>
                   </div>
 
-                  <Link
-                    href={cls.share_slug ? `/class/${cls.share_slug}` : `/register?class=${cls.id}`}
-                    className="flex items-center justify-center gap-2 w-full py-3.5 bg-gray-900 text-white font-semibold rounded-xl hover:bg-brand-500 transition-colors"
-                  >
-                    Register Now
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
+                  {cls.join_enabled ? (
+                    <Link
+                      href={cls.share_slug ? `/class/${cls.share_slug}` : `/register?class=${cls.id}`}
+                      className="flex items-center justify-center gap-2 w-full py-3.5 bg-gray-900 text-white font-semibold rounded-xl hover:bg-brand-500 transition-colors"
+                    >
+                      Join class
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  ) : (
+                    <span className="flex cursor-not-allowed items-center justify-center gap-2 w-full rounded-xl bg-gray-100 py-3.5 font-semibold text-gray-400">Registration opening soon</span>
+                  )}
                 </div>
               </div>
             ))}
