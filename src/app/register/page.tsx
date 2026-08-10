@@ -18,6 +18,7 @@ function RegisterPageContent() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [message, setMessage] = useState("");
+  const [authRequired, setAuthRequired] = useState(false);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -42,35 +43,50 @@ function RegisterPageContent() {
     e.preventDefault();
     setSubmitting(true);
     setMessage("");
+    setAuthRequired(false);
 
     try {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) {
+        setAuthRequired(true);
+        setMessage("Please sign in before registering for a class.");
+        return;
+      }
+      if (!classId) throw new Error("This class link is missing a class ID.");
+
       const formattedPhone = formatPhoneNumber(formData.phone);
+      const userId = authData.user.id;
 
-      // 1. Create or get student
-      const { data: existingStudent } = await supabase
+      // Students are owned by the authenticated Supabase user. This matches
+      // the students_self_insert policy (students.id = auth.uid()).
+      const { data: existingStudent, error: lookupError } = await supabase
         .from("students")
-        .select("id")
-        .eq("phone", formattedPhone)
-        .single();
+        .select("id, phone")
+        .eq("id", userId)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
 
-      let studentId = existingStudent?.id;
-
-      if (!studentId) {
-        const { data: newStudent, error: studentError } = await supabase
-          .from("students")
-          .insert({
-            full_name: formData.fullName,
-            phone: formattedPhone,
-            email: formData.email || null,
-          })
-          .select("id")
-          .single();
-
-        if (studentError) throw studentError;
-        studentId = newStudent.id;
+      let studentId = userId;
+      if (existingStudent) {
+        const { error: updateError } = await supabase.from("students").update({
+          full_name: formData.fullName,
+          phone: formattedPhone,
+          email: formData.email || null,
+        }).eq("id", userId);
+        if (updateError) throw updateError;
+      } else {
+        const { error: studentError } = await supabase.from("students").insert({
+          id: userId,
+          full_name: formData.fullName,
+          phone: formattedPhone,
+          email: formData.email || null,
+        });
+        if (studentError) {
+          if (studentError.code === "23505") throw new Error("This phone number is already linked to another account.");
+          throw studentError;
+        }
       }
 
-      // 2. Create registration
       const { error: regError } = await supabase.from("registrations").insert({
         student_id: studentId,
         class_id: classId,
@@ -78,10 +94,11 @@ function RegisterPageContent() {
       });
 
       if (regError) {
-        if (regError.message.includes("duplicate")) {
+        if (regError.code === "23505" || regError.message.toLowerCase().includes("duplicate")) {
           setMessage("You are already registered for this class!");
           return;
         }
+        if (regError.code === "42501") throw new Error("Your session has expired. Please sign in again and retry.");
         throw regError;
       }
 
@@ -257,12 +274,13 @@ function RegisterPageContent() {
             </button>
 
             {message && (
-              <div className={`p-3 rounded-lg text-sm font-medium ${
-                message.includes("already") || message.includes("failed")
+              <div className={`rounded-lg p-3 text-sm font-medium ${
+                message.includes("already") || message.includes("failed") || authRequired || message.includes("expired") || message.includes("another account")
                   ? "bg-red-50 text-red-700"
                   : "bg-green-50 text-green-700"
               }`}>
-                {message}
+                <p>{message}</p>
+                {authRequired && <Link href={`/auth?redirect=${encodeURIComponent(`/register?class=${classId}`)}`} className="mt-2 inline-block font-semibold underline">Sign in to continue</Link>}
               </div>
             )}
           </form>
