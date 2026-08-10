@@ -9,13 +9,20 @@ import { useTheme } from "@/context/ThemeContext";
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showInstall, setShowInstall] = useState(false);
   const { resolvedTheme, toggleTheme } = useTheme();
   const supabase = createClientBrowser();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    supabase.auth.getUser().then(async ({ data }) => {
+      setUser(data.user);
+      if (data.user) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
+        setIsAdmin(profile?.role === "admin");
+      }
+    });
 
     // Listen for PWA install prompt
     window.addEventListener("beforeinstallprompt", (e) => {
@@ -73,6 +80,7 @@ export default function Navbar() {
                 >
                   <LayoutDashboard className="w-4 h-4" /> My Kitchen
                 </Link>
+                {isAdmin && <Link href="/admin" className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors">Admin</Link>}
                 <Link
                   href="/affiliate"
                   className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
@@ -162,6 +170,7 @@ export default function Navbar() {
                 >
                   <LayoutDashboard className="w-5 h-5" /> My Kitchen
                 </Link>
+                {isAdmin && <Link href="/admin" onClick={() => setIsOpen(false)} className="flex items-center gap-2 px-4 py-3 text-base font-medium text-red-600 hover:bg-red-50 rounded-lg">Admin</Link>}
                 <Link
                   href="/affiliate"
                   onClick={() => setIsOpen(false)}
