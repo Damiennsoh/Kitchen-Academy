@@ -2,9 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import ChatbotWidget from "@/components/chatbot/ChatbotWidget";
+import AppChrome from "@/components/AppChrome";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -41,12 +39,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <ThemeProvider>
-          <div className="flex flex-col min-h-screen">
-            <Navbar />
-            <main className="flex-1">{children}</main>
-            <Footer />
-          </div>
-          <ChatbotWidget />
+          <AppChrome>{children}</AppChrome>
         </ThemeProvider>
         <script
           dangerouslySetInnerHTML={{

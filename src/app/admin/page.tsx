@@ -1,19 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createClientBrowser } from "@/lib/supabase";
 import { Class, Registration, Student, MessageLog, VideoAsset, Profile } from "@/types";
 import { formatDate, formatCurrency } from "@/lib/utils";
-import { Loader2, Send, Mail, MessageSquare, CheckCircle, Users, BookOpen, DollarSign, BarChart3, Search, Filter, ChevronDown, Phone, Check, X, Play } from "lucide-react";
+import { Loader2, Send, Mail, MessageSquare, CheckCircle, Users, BookOpen, DollarSign, BarChart3, Search, Filter, ChevronDown, Phone, Check, X, Play, Plus, Pencil, Trash2, Package } from "lucide-react";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
 import { Download } from "lucide-react";
 
-type Tab = "classes" | "videos" | "registrations" | "students" | "messages" | "analytics";
+type Tab = "classes" | "products" | "videos" | "registrations" | "students" | "messages" | "analytics";
+type Product = { id: string; name: string; description: string; price: number; currency: string; category: string; image_url?: string | null; stock_quantity: number; weight_grams?: number | null; is_active: boolean; created_at: string };
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>("analytics");
   const [classes, setClasses] = useState<Class[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [videos, setVideos] = useState<VideoAsset[]>([]);
+  const [showClassForm, setShowClassForm] = useState(false);
+  const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [classForm, setClassForm] = useState({ title: "", description: "", price: "5", currency: "USD", class_date: "", duration_minutes: "120", max_students: "50", status: "upcoming", image_url: "", zoom_link: "" });
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productForm, setProductForm] = useState({ name: "", description: "", price: "", currency: "USD", category: "spice", stock_quantity: "0", weight_grams: "", image_url: "" });
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [registrations, setRegistrations] = useState<(Registration & { student: Student; class: Class })[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -36,9 +44,10 @@ export default function AdminPage() {
   }, []);
 
   async function fetchAllData() {
-    const [{ data: cls }, { data: profs }, { data: vids }, { data: regs }, { data: studs }, { data: logs }] = await Promise.all([
+    const [{ data: cls }, { data: profs }, { data: prods }, { data: vids }, { data: regs }, { data: studs }, { data: logs }] = await Promise.all([
       supabase.from("classes").select("*").order("class_date", { ascending: false }),
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+      supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("videos").select("*").order("created_at", { ascending: false }),
       supabase.from("registrations").select("*, student:students(*), class:classes(*)").order("created_at", { ascending: false }),
       supabase.from("students").select("*").order("created_at", { ascending: false }),
@@ -46,6 +55,7 @@ export default function AdminPage() {
     ]);
     setClasses(cls || []);
     setProfiles(profs || []);
+    setProducts(prods || []);
     setVideos(vids || []);
     setRegistrations(regs || []);
     setStudents(studs || []);
@@ -106,6 +116,44 @@ export default function AdminPage() {
     await supabase.from("profiles").delete().eq("id", profile.id);
     await fetchAllData();
   }
+
+  function startClassEdit(cls?: Class) {
+    setEditingClass(cls || null);
+    setClassForm(cls ? { title: cls.title, description: cls.description, price: String(cls.price), currency: cls.currency, class_date: cls.class_date.slice(0, 16), duration_minutes: String(cls.duration_minutes), max_students: String(cls.max_students), status: cls.status, image_url: cls.image_url || "", zoom_link: cls.zoom_link || "" } : { title: "", description: "", price: "5", currency: "USD", class_date: "", duration_minutes: "120", max_students: "50", status: "upcoming", image_url: "", zoom_link: "" });
+    setShowClassForm(true);
+  }
+
+  async function saveClass(event: FormEvent) {
+    event.preventDefault();
+    const payload = { ...classForm, price: Number(classForm.price), duration_minutes: Number(classForm.duration_minutes), max_students: Number(classForm.max_students), class_date: new Date(classForm.class_date).toISOString(), is_published: true, join_enabled: true };
+    if (editingClass) await supabase.from("classes").update(payload).eq("id", editingClass.id); else await supabase.from("classes").insert(payload);
+    setShowClassForm(false); setEditingClass(null); await fetchAllData();
+  }
+
+  async function deleteClass(cls: Class) {
+    if (!window.confirm(`Delete ${cls.title}? Registrations linked to it will also be removed.`)) return;
+    await supabase.from("classes").delete().eq("id", cls.id); await fetchAllData();
+  }
+
+  function startProductEdit(product?: Product) {
+    setEditingProduct(product || null);
+    setProductForm(product ? { name: product.name, description: product.description, price: String(product.price), currency: product.currency, category: product.category, stock_quantity: String(product.stock_quantity), weight_grams: String(product.weight_grams || ""), image_url: product.image_url || "" } : { name: "", description: "", price: "", currency: "USD", category: "spice", stock_quantity: "0", weight_grams: "", image_url: "" });
+    setShowProductForm(true);
+  }
+
+  async function saveProduct(event: FormEvent) {
+    event.preventDefault();
+    const payload = { ...productForm, price: Number(productForm.price), stock_quantity: Number(productForm.stock_quantity), weight_grams: productForm.weight_grams ? Number(productForm.weight_grams) : null };
+    if (editingProduct) await supabase.from("products").update(payload).eq("id", editingProduct.id); else await supabase.from("products").insert(payload);
+    setShowProductForm(false); setEditingProduct(null); await fetchAllData();
+  }
+
+  async function deleteProduct(product: Product) {
+    if (!window.confirm(`Delete ${product.name}?`)) return;
+    await supabase.from("products").delete().eq("id", product.id); await fetchAllData();
+  }
+
+  async function toggleProduct(product: Product) { await supabase.from("products").update({ is_active: !product.is_active }).eq("id", product.id); await fetchAllData(); }
 
   async function toggleJoinEnabled(cls: Class) {
     await supabase.from("classes").update({ join_enabled: !cls.join_enabled }).eq("id", cls.id);
@@ -269,6 +317,7 @@ export default function AdminPage() {
               { key: "registrations", label: "Registrations", icon: Users },
               { key: "students", label: "Students", icon: Users },
               { key: "classes", label: "Classes", icon: BookOpen },
+              { key: "products", label: "Shop products", icon: Package },
               { key: "videos", label: "Videos", icon: Play },
               { key: "messages", label: "Message History", icon: MessageSquare },
               { key: "analytics", label: "Analytics", icon: BarChart3 },
@@ -467,6 +516,10 @@ export default function AdminPage() {
 
             {/* CLASSES TAB */}
             {activeTab === "classes" && (
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-gray-900">Class catalogue</h2><p className="text-sm text-gray-500">Create, edit, publish, archive, and remove classes.</p></div><button onClick={() => startClassEdit()} className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"><Plus className="size-4" /> New class</button></div>
+                {showClassForm && <form onSubmit={saveClass} className="grid gap-3 rounded-xl border border-brand-100 bg-brand-50 p-4 md:grid-cols-2"><input required placeholder="Class title" value={classForm.title} onChange={(e) => setClassForm({ ...classForm, title: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input required type="datetime-local" value={classForm.class_date} onChange={(e) => setClassForm({ ...classForm, class_date: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><textarea required placeholder="Description" value={classForm.description} onChange={(e) => setClassForm({ ...classForm, description: e.target.value })} className="min-h-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm md:col-span-2" /><div className="grid grid-cols-3 gap-2"><input required type="number" step="0.01" placeholder="Price" value={classForm.price} onChange={(e) => setClassForm({ ...classForm, price: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input required type="number" placeholder="Duration" value={classForm.duration_minutes} onChange={(e) => setClassForm({ ...classForm, duration_minutes: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input required type="number" placeholder="Max students" value={classForm.max_students} onChange={(e) => setClassForm({ ...classForm, max_students: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></div><input placeholder="Image URL" value={classForm.image_url} onChange={(e) => setClassForm({ ...classForm, image_url: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><div className="flex gap-2 md:col-span-2"><button type="submit" className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">{editingClass ? "Save changes" : "Create class"}</button><button type="button" onClick={() => setShowClassForm(false)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700">Cancel</button></div></form>}
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {classes.map((c) => {
                   const classRegs = registrations.filter((r) => r.class_id === c.id);
@@ -485,12 +538,25 @@ export default function AdminPage() {
     <button onClick={() => toggleJoinEnabled(c)} className={`rounded-lg px-3 py-2 text-xs font-semibold ${c.join_enabled ? "bg-brand-500 text-white" : "border border-gray-200 bg-white text-gray-700"}`}>{c.join_enabled ? "Join active" : "Enable Join"}</button>
     <button onClick={() => copyClassLink(c)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500 hover:text-brand-600">Copy link</button>
     <button onClick={() => toggleClassArchive(c)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500 hover:text-brand-600">{c.archived_at ? "Republish" : "Archive class"}</button>
+    <button onClick={() => startClassEdit(c)} aria-label={`Edit ${c.title}`} className="rounded-lg border border-gray-200 bg-white p-2 text-gray-700 hover:border-brand-500"><Pencil className="size-4" /></button>
+    <button onClick={() => deleteClass(c)} aria-label={`Delete ${c.title}`} className="rounded-lg border border-red-100 bg-white p-2 text-red-600 hover:bg-red-50"><Trash2 className="size-4" /></button>
   </div>
   </div>
                   );
                 })}
               </div>
+              </div>
+              </div>
             )}
+
+  {/* PRODUCTS TAB */}
+  {activeTab === "products" && (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-gray-900">Shop catalogue</h2><p className="text-sm text-gray-500">Manage products, pricing, inventory, and visibility.</p></div><button onClick={() => startProductEdit()} className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"><Plus className="size-4" /> New product</button></div>
+      {showProductForm && <form onSubmit={saveProduct} className="grid gap-3 rounded-xl border border-brand-100 bg-brand-50 p-4 md:grid-cols-2"><input required placeholder="Product name" value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input required type="number" step="0.01" placeholder="Price" value={productForm.price} onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><textarea required placeholder="Description" value={productForm.description} onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} className="min-h-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm md:col-span-2" /><div className="grid grid-cols-3 gap-2"><input required type="number" placeholder="Stock quantity" value={productForm.stock_quantity} onChange={(e) => setProductForm({ ...productForm, stock_quantity: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input placeholder="Category" value={productForm.category} onChange={(e) => setProductForm({ ...productForm, category: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input placeholder="Weight (g)" value={productForm.weight_grams} onChange={(e) => setProductForm({ ...productForm, weight_grams: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></div><input placeholder="Image URL" value={productForm.image_url} onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><div className="flex gap-2 md:col-span-2"><button type="submit" className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">{editingProduct ? "Save changes" : "Create product"}</button><button type="button" onClick={() => setShowProductForm(false)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700">Cancel</button></div></form>}
+      <div className="overflow-x-auto rounded-xl border border-gray-100"><table className="w-full min-w-[700px]"><thead><tr className="border-b border-gray-100 bg-gray-50"><th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Product</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Price</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Stock</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Status</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Actions</th></tr></thead><tbody className="divide-y divide-gray-100">{products.map((product) => <tr key={product.id}><td className="px-4 py-3"><div className="font-semibold text-gray-900">{product.name}</div><div className="text-xs text-gray-500">{product.category}</div></td><td className="px-4 py-3 text-sm text-gray-700">{formatCurrency(product.price, product.currency)}</td><td className="px-4 py-3 text-sm text-gray-700">{product.stock_quantity}</td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${product.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>{product.is_active ? "Active" : "Hidden"}</span></td><td className="px-4 py-3"><div className="flex gap-2"><button onClick={() => toggleProduct(product)} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700">{product.is_active ? "Hide" : "Activate"}</button><button onClick={() => startProductEdit(product)} aria-label={`Edit ${product.name}`} className="rounded-lg border border-gray-200 p-2 text-gray-700"><Pencil className="size-4" /></button><button onClick={() => deleteProduct(product)} aria-label={`Delete ${product.name}`} className="rounded-lg border border-red-100 p-2 text-red-600"><Trash2 className="size-4" /></button></div></td></tr>)}</tbody></table></div>
+    </div>
+  )}
 
   {/* VIDEOS TAB */}
   {activeTab === "videos" && (
