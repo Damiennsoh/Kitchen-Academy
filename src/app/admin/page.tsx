@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClientBrowser } from "@/lib/supabase";
-import { Class, Registration, Student, MessageLog, VideoAsset } from "@/types";
+import { Class, Registration, Student, MessageLog, VideoAsset, Profile } from "@/types";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { Loader2, Send, Mail, MessageSquare, CheckCircle, Users, BookOpen, DollarSign, BarChart3, Search, Filter, ChevronDown, Phone, Check, X, Play } from "lucide-react";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
@@ -14,6 +14,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>("analytics");
   const [classes, setClasses] = useState<Class[]>([]);
   const [videos, setVideos] = useState<VideoAsset[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [registrations, setRegistrations] = useState<(Registration & { student: Student; class: Class })[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [messageLogs, setMessageLogs] = useState<(MessageLog & { student: Student; class: Class })[]>([]);
@@ -35,14 +36,16 @@ export default function AdminPage() {
   }, []);
 
   async function fetchAllData() {
-    const [{ data: cls }, { data: vids }, { data: regs }, { data: studs }, { data: logs }] = await Promise.all([
+    const [{ data: cls }, { data: profs }, { data: vids }, { data: regs }, { data: studs }, { data: logs }] = await Promise.all([
       supabase.from("classes").select("*").order("class_date", { ascending: false }),
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("videos").select("*").order("created_at", { ascending: false }),
       supabase.from("registrations").select("*, student:students(*), class:classes(*)").order("created_at", { ascending: false }),
       supabase.from("students").select("*").order("created_at", { ascending: false }),
       supabase.from("message_logs").select("*, student:students(*), class:classes(*)").order("created_at", { ascending: false }).limit(100),
     ]);
     setClasses(cls || []);
+    setProfiles(profs || []);
     setVideos(vids || []);
     setRegistrations(regs || []);
     setStudents(studs || []);
@@ -88,6 +91,19 @@ export default function AdminPage() {
 
   async function updateVideo(video: VideoAsset, patch: Partial<VideoAsset>) {
     await supabase.from("videos").update(patch).eq("id", video.id);
+    await fetchAllData();
+  }
+
+  async function updateProfileRole(profile: Profile, role: Profile["role"]) {
+    if (profile.role === "admin" && role === "student" && !window.confirm("Remove this admin role?")) return;
+    await supabase.from("profiles").update({ role }).eq("id", profile.id);
+    await fetchAllData();
+  }
+
+  async function deleteStudentProfile(profile: Profile) {
+    if (profile.role !== "student") return;
+    if (!window.confirm(`Delete ${profile.full_name || "this student"}?`)) return;
+    await supabase.from("profiles").delete().eq("id", profile.id);
     await fetchAllData();
   }
 
@@ -411,7 +427,14 @@ export default function AdminPage() {
 
             {/* STUDENTS TAB */}
             {activeTab === "students" && (
-              <div className="overflow-x-auto">
+              <div className="space-y-8">
+                <section>
+                  <div className="mb-4"><h2 className="text-lg font-bold text-gray-900">Account roles</h2><p className="text-sm text-gray-500">Set your own profile&apos;s role to <strong>admin</strong> in the Supabase Table Editor. Admin accounts cannot delete themselves.</p></div>
+                  <div className="overflow-x-auto rounded-xl border border-gray-100">
+                    <table className="w-full min-w-[650px]"><thead><tr className="border-b border-gray-100 bg-gray-50"><th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Name</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Role</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Joined</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Actions</th></tr></thead><tbody className="divide-y divide-gray-100">{profiles.map((profile) => <tr key={profile.id}><td className="px-4 py-3 text-sm font-medium text-gray-900">{profile.full_name || "Unnamed account"}</td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${profile.role === "admin" ? "bg-brand-100 text-brand-700" : "bg-gray-100 text-gray-600"}`}>{profile.role}</span></td><td className="px-4 py-3 text-sm text-gray-500">{formatDate(profile.created_at)}</td><td className="px-4 py-3"><div className="flex gap-2">{profile.role === "student" ? <button onClick={() => updateProfileRole(profile, "admin")} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500">Make admin</button> : <button onClick={() => updateProfileRole(profile, "student")} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500">Remove admin</button>}{profile.role === "student" && <button onClick={() => deleteStudentProfile(profile)} className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">Delete student</button>}</div></td></tr>)}</tbody></table>
+                  </div>
+                </section>
+                <div className="overflow-x-auto">
                 <table className="w-full min-w-[500px]">
                   <thead>
                     <tr className="border-b border-gray-100">
@@ -438,6 +461,7 @@ export default function AdminPage() {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 

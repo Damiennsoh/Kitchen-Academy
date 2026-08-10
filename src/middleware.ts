@@ -9,7 +9,7 @@ export async function middleware(request: NextRequest) {
 
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/admin")) {
     if (!user) return NextResponse.redirect(new URL("/auth", request.url))
-    if (pathname.startsWith("/admin") && !isAdmin(user)) return NextResponse.redirect(new URL("/dashboard", request.url))
+    if (pathname.startsWith("/admin") && !(await isAdmin(user, supabase))) return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
   return response
