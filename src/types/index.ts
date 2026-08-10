@@ -1,3 +1,11 @@
+export interface Profile {
+  id: string;
+  full_name?: string | null;
+  role: "student" | "admin";
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface Student {
   id: string;
   full_name: string;
