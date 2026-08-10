@@ -15,6 +15,11 @@ export default function AuthPage() {
   const [success, setSuccess] = useState(false);
   const supabase = createClientBrowser();
 
+  function getSafeRedirect() {
+    const redirect = new URLSearchParams(window.location.search).get("redirect");
+    return redirect?.startsWith("/") && !redirect.startsWith("//") ? redirect : "/classes";
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -40,7 +45,7 @@ export default function AuthPage() {
             email: email.trim(),
             phone: null,
           }, { onConflict: "id" });
-          window.location.href = "/classes";
+          window.location.href = getSafeRedirect();
           return;
         }
 
