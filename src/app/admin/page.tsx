@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { createClientBrowser } from "@/lib/supabase";
-import { Class, Registration, Student, MessageLog } from "@/types";
+import { Class, Registration, Student, MessageLog, VideoAsset } from "@/types";
 import { formatDate, formatCurrency } from "@/lib/utils";
-import { Loader2, Send, Mail, MessageSquare, CheckCircle, Users, BookOpen, DollarSign, BarChart3, Search, Filter, ChevronDown, Phone, Check, X } from "lucide-react";
+import { Loader2, Send, Mail, MessageSquare, CheckCircle, Users, BookOpen, DollarSign, BarChart3, Search, Filter, ChevronDown, Phone, Check, X, Play } from "lucide-react";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
 import { Download } from "lucide-react";
 
-type Tab = "classes" | "registrations" | "students" | "messages" | "analytics";
+type Tab = "classes" | "videos" | "registrations" | "students" | "messages" | "analytics";
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>("analytics");
   const [classes, setClasses] = useState<Class[]>([]);
+  const [videos, setVideos] = useState<VideoAsset[]>([]);
   const [registrations, setRegistrations] = useState<(Registration & { student: Student; class: Class })[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [messageLogs, setMessageLogs] = useState<(MessageLog & { student: Student; class: Class })[]>([]);
@@ -34,13 +35,15 @@ export default function AdminPage() {
   }, []);
 
   async function fetchAllData() {
-    const [{ data: cls }, { data: regs }, { data: studs }, { data: logs }] = await Promise.all([
+    const [{ data: cls }, { data: vids }, { data: regs }, { data: studs }, { data: logs }] = await Promise.all([
       supabase.from("classes").select("*").order("class_date", { ascending: false }),
+      supabase.from("videos").select("*").order("created_at", { ascending: false }),
       supabase.from("registrations").select("*, student:students(*), class:classes(*)").order("created_at", { ascending: false }),
       supabase.from("students").select("*").order("created_at", { ascending: false }),
       supabase.from("message_logs").select("*, student:students(*), class:classes(*)").order("created_at", { ascending: false }).limit(100),
     ]);
     setClasses(cls || []);
+    setVideos(vids || []);
     setRegistrations(regs || []);
     setStudents(studs || []);
     setMessageLogs(logs || []);
@@ -80,6 +83,11 @@ export default function AdminPage() {
 
   async function promoteToStudent(student: Student) {
     await supabase.from("students").update({ is_student: !student.is_student }).eq("id", student.id);
+    await fetchAllData();
+  }
+
+  async function updateVideo(video: VideoAsset, patch: Partial<VideoAsset>) {
+    await supabase.from("videos").update(patch).eq("id", video.id);
     await fetchAllData();
   }
 
@@ -245,6 +253,7 @@ export default function AdminPage() {
               { key: "registrations", label: "Registrations", icon: Users },
               { key: "students", label: "Students", icon: Users },
               { key: "classes", label: "Classes", icon: BookOpen },
+              { key: "videos", label: "Videos", icon: Play },
               { key: "messages", label: "Message History", icon: MessageSquare },
               { key: "analytics", label: "Analytics", icon: BarChart3 },
             ] as const).map((tab) => (
@@ -459,8 +468,27 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* ANALYTICS TAB */}
-            {activeTab === "analytics" && <AnalyticsDashboard />}
+  {/* VIDEOS TAB */}
+  {activeTab === "videos" && (
+    <div className="space-y-4">
+      <div><h2 className="text-lg font-bold text-gray-900">Video access</h2><p className="text-sm text-gray-500">Configure streaming, downloads, quality, and publishing for each replay.</p></div>
+      {videos.map((video) => (
+        <div key={video.id} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div><h3 className="font-semibold text-gray-900">{video.title}</h3><p className="text-xs text-gray-500">Provider path is kept server-side for protected delivery.</p></div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select value={video.access_mode} onChange={(e) => updateVideo(video, { access_mode: e.target.value as VideoAsset["access_mode"] })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="stream">Stream only</option><option value="download">Download only</option><option value="both">Stream + download</option></select>
+              <button onClick={() => updateVideo(video, { is_published: !video.is_published })} className={`rounded-lg px-3 py-2 text-sm font-semibold ${video.is_published ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"}`}>{video.is_published ? "Published" : "Unpublished"}</button>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-500"><span>Download limit: {video.download_limit}</span><span>Qualities: {(video.qualities || []).join(", ") || "Not set"}</span></div>
+        </div>
+      ))}
+    </div>
+  )}
+
+  {/* ANALYTICS TAB */}
+  {activeTab === "analytics" && <AnalyticsDashboard />}
 
             {/* MESSAGES TAB */}
             {activeTab === "messages" && (

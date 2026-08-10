@@ -67,6 +67,20 @@ export interface Certificate {
   download_url?: string;
 }
 
+export interface VideoAsset {
+  id: string;
+  class_id: string;
+  title: string;
+  description?: string;
+  provider: string;
+  provider_path?: string | null;
+  access_mode: "stream" | "download" | "both";
+  qualities: string[];
+  download_limit: number;
+  is_published: boolean;
+  created_at: string;
+}
+
 export interface PDFGuide {
   id: string;
   class_id: string;
