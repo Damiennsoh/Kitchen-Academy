@@ -291,7 +291,7 @@ export default function AdminPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {[
             { label: "Total Students", value: totalStudents, icon: Users, color: "bg-blue-100 text-blue-600" },
             { label: "Total Classes", value: totalClasses, icon: BookOpen, color: "bg-brand-100 text-brand-600" },
@@ -323,31 +323,37 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
-          <div className="flex border-b border-gray-100 overflow-x-auto">
-            {([
-              { key: "registrations", label: "Registrations", icon: Users },
-              { key: "students", label: "Students", icon: Users },
-              { key: "classes", label: "Classes", icon: BookOpen },
-              { key: "products", label: "Shop products", icon: Package },
-              { key: "videos", label: "Videos", icon: Play },
-              { key: "messages", label: "Message History", icon: MessageSquare },
-              { key: "analytics", label: "Analytics", icon: BarChart3 },
-            ] as const).map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === tab.key
-                    ? "border-brand-500 text-brand-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <tab.icon className="w-4 h-4" /> {tab.label}
-              </button>
-            ))}
+          <div className="border-b border-gray-100">
+            <div className="flex gap-1 overflow-x-auto px-2 py-2 sm:px-3" role="tablist" aria-label="Admin sections">
+              {([
+                { key: "registrations", label: "Registrations", shortLabel: "Registrations", icon: Users },
+                { key: "students", label: "Students", shortLabel: "Students", icon: Users },
+                { key: "classes", label: "Classes", shortLabel: "Classes", icon: BookOpen },
+                { key: "products", label: "Shop products", shortLabel: "Shop", icon: Package },
+                { key: "videos", label: "Videos", shortLabel: "Videos", icon: Play },
+                { key: "messages", label: "Message History", shortLabel: "Messages", icon: MessageSquare },
+                { key: "analytics", label: "Analytics", shortLabel: "Analytics", icon: BarChart3 },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.key}
+                  role="tab"
+                  aria-selected={activeTab === tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex min-w-max shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-3 py-2 text-[11px] font-semibold leading-tight transition-colors sm:flex-row sm:gap-2 sm:px-4 sm:py-3 sm:text-sm ${
+                    activeTab === tab.key
+                      ? "bg-brand-50 text-brand-600"
+                      : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                  }`}
+                >
+                  <tab.icon className="size-4 shrink-0" aria-hidden="true" />
+                  <span className="sm:hidden">{tab.shortLabel}</span>
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="p-4 sm:p-6">
+          <div className="p-3 sm:p-6">
             {/* REGISTRATIONS TAB */}
             {activeTab === "registrations" && (
               <div>
