@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClientBrowser } from "@/lib/supabase";
-import { Registration, Class, Certificate, PDFGuide } from "@/types";
+import { Registration, Class, Certificate, PDFGuide, VideoAsset } from "@/types";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 import { Calendar, CheckCircle, Clock, Download, Award, BookOpen, Loader2, ArrowLeft, CreditCard, FileText, Play } from "lucide-react";
@@ -11,7 +11,9 @@ export default function DashboardPage() {
   const [registrations, setRegistrations] = useState<(Registration & { class: Class })[]>([]);
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [pdfs, setPdfs] = useState<PDFGuide[]>([]);
+  const [videos, setVideos] = useState<VideoAsset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [videoMessage, setVideoMessage] = useState("");
   const [user, setUser] = useState<any>(null);
   const supabase = createClientBrowser();
 
@@ -51,6 +53,12 @@ export default function DashboardPage() {
 
     setRegistrations(regs || []);
 
+    const paidClassIds = (regs || []).filter((r: any) => r.paid).map((r: any) => r.class_id);
+    if (paidClassIds.length > 0) {
+      const { data: classVideos } = await supabase.from("videos").select("*").in("class_id", paidClassIds).eq("is_published", true);
+      setVideos(classVideos || []);
+    }
+
     // Fetch certificates
     const { data: certs } = await supabase
       .from("certificates")
@@ -71,6 +79,18 @@ export default function DashboardPage() {
     }
 
     setLoading(false);
+  }
+
+  async function openVideo(video: VideoAsset, intent: "stream" | "download") {
+    setVideoMessage("");
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await fetch(`/api/videos/access?videoId=${video.id}&intent=${intent}&quality=720p`, { headers: { Authorization: `Bearer ${session?.access_token || ""}` } });
+    const data = await response.json();
+    if (!response.ok) {
+      setVideoMessage(data.error || "Unable to open this video");
+      return;
+    }
+    window.open(data.url, "_blank", "noopener,noreferrer");
   }
 
   async function handlePaynowPayment(regId: string) {
@@ -181,6 +201,31 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* Video Library */}
+        {videos.length > 0 && (
+          <div className="mb-8 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="border-b border-gray-100 px-5 py-4 sm:px-6">
+              <h2 className="text-lg font-bold text-gray-900">My Class Videos</h2>
+              <p className="mt-1 text-sm text-gray-500">Watch your replays or download them when the instructor allows it.</p>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {videos.map((video) => (
+                <div key={video.id} className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{video.title}</h3>
+                    <p className="mt-1 text-sm text-gray-500">{video.access_mode === "both" ? "Streaming and downloads" : video.access_mode === "download" ? "Download access" : "Streaming access"}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {["stream", "both"].includes(video.access_mode) && <button onClick={() => openVideo(video, "stream")} className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-500"><Play className="size-4" /> Watch</button>}
+                    {["download", "both"].includes(video.access_mode) && <button onClick={() => openVideo(video, "download")} className="inline-flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"><Download className="size-4" /> Download</button>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {videoMessage && <p className="border-t border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">{videoMessage}</p>}
+          </div>
+        )}
 
         {/* Certificates */}
         {certificates.length > 0 && (
