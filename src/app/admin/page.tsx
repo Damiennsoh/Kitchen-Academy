@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { createClientBrowser } from "@/lib/supabase";
 import { Class, Registration, Student, MessageLog, VideoAsset, Profile } from "@/types";
 import { formatDate, formatCurrency } from "@/lib/utils";
-import { Loader2, Send, Mail, MessageSquare, CheckCircle, Users, BookOpen, DollarSign, BarChart3, Search, Filter, ChevronDown, Phone, Check, X, Play, Plus, Pencil, Trash2, Package } from "lucide-react";
+import { Loader2, Send, Mail, MessageSquare, CheckCircle, Users, BookOpen, DollarSign, BarChart3, Search, Filter, ChevronDown, Phone, Check, X, Play, Plus, Pencil, Trash2, Package, Home, ImagePlus } from "lucide-react";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
 import { Download } from "lucide-react";
 
@@ -121,6 +121,17 @@ export default function AdminPage() {
     setEditingClass(cls || null);
     setClassForm(cls ? { title: cls.title, description: cls.description, price: String(cls.price), currency: cls.currency, class_date: cls.class_date.slice(0, 16), duration_minutes: String(cls.duration_minutes), max_students: String(cls.max_students), status: cls.status, image_url: cls.image_url || "", zoom_link: cls.zoom_link || "" } : { title: "", description: "", price: "5", currency: "USD", class_date: "", duration_minutes: "120", max_students: "50", status: "upcoming", image_url: "", zoom_link: "" });
     setShowClassForm(true);
+  }
+
+  async function handleClassImageUpload(file: File) {
+    if (!file.type.startsWith("image/")) throw new Error("Please choose an image file.");
+    if (file.size > 5 * 1024 * 1024) throw new Error("Class images must be smaller than 5 MB.");
+    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const path = `classes/${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabase.storage.from("class-images").upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
+    if (error) throw error;
+    const { data } = supabase.storage.from("class-images").getPublicUrl(path);
+    setClassForm((current) => ({ ...current, image_url: data.publicUrl }));
   }
 
   async function saveClass(event: FormEvent) {
@@ -269,7 +280,7 @@ export default function AdminPage() {
       <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <h1 className="text-xl font-bold text-gray-900">Chipo&apos;s Admin</h1>
+            <div className="flex items-center gap-3"><a href="/" aria-label="Return to homepage" title="Return to homepage" className="inline-flex size-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 shadow-sm transition hover:border-brand-500 hover:text-brand-600"><Home className="size-5" /></a><h1 className="text-xl font-bold text-gray-900">Chipo&apos;s Admin</h1></div>
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-500 hidden sm:inline">{totalStudents} students • {totalClasses} classes</span>
               <div className="w-8 h-8 bg-brand-500 rounded-full flex items-center justify-center text-white text-sm font-bold">C</div>
@@ -518,28 +529,30 @@ export default function AdminPage() {
             {activeTab === "classes" && (
               <div className="flex flex-col gap-5">
                 <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-gray-900">Class catalogue</h2><p className="text-sm text-gray-500">Create, edit, publish, archive, and remove classes.</p></div><button onClick={() => startClassEdit()} className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"><Plus className="size-4" /> New class</button></div>
-                {showClassForm && <form onSubmit={saveClass} className="grid gap-3 rounded-xl border border-brand-100 bg-brand-50 p-4 md:grid-cols-2"><input required placeholder="Class title" value={classForm.title} onChange={(e) => setClassForm({ ...classForm, title: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input required type="datetime-local" value={classForm.class_date} onChange={(e) => setClassForm({ ...classForm, class_date: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><textarea required placeholder="Description" value={classForm.description} onChange={(e) => setClassForm({ ...classForm, description: e.target.value })} className="min-h-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm md:col-span-2" /><div className="grid grid-cols-3 gap-2"><input required type="number" step="0.01" placeholder="Price" value={classForm.price} onChange={(e) => setClassForm({ ...classForm, price: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input required type="number" placeholder="Duration" value={classForm.duration_minutes} onChange={(e) => setClassForm({ ...classForm, duration_minutes: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input required type="number" placeholder="Max students" value={classForm.max_students} onChange={(e) => setClassForm({ ...classForm, max_students: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></div><input placeholder="Image URL" value={classForm.image_url} onChange={(e) => setClassForm({ ...classForm, image_url: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><div className="flex gap-2 md:col-span-2"><button type="submit" className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">{editingClass ? "Save changes" : "Create class"}</button><button type="button" onClick={() => setShowClassForm(false)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700">Cancel</button></div></form>}
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {showClassForm && <form onSubmit={saveClass} className="grid gap-3 rounded-xl border border-brand-100 bg-brand-50 p-4 md:grid-cols-2"><input required placeholder="Class title" value={classForm.title} onChange={(e) => setClassForm({ ...classForm, title: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input required type="datetime-local" value={classForm.class_date} onChange={(e) => setClassForm({ ...classForm, class_date: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><textarea required placeholder="Description" value={classForm.description} onChange={(e) => setClassForm({ ...classForm, description: e.target.value })} className="min-h-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm md:col-span-2" /><div className="grid grid-cols-3 gap-2"><input required type="number" step="0.01" placeholder="Price" value={classForm.price} onChange={(e) => setClassForm({ ...classForm, price: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input required type="number" placeholder="Duration" value={classForm.duration_minutes} onChange={(e) => setClassForm({ ...classForm, duration_minutes: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /><input required type="number" placeholder="Max students" value={classForm.max_students} onChange={(e) => setClassForm({ ...classForm, max_students: e.target.value })} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></div><label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-3 text-sm text-gray-600 md:col-span-2"><ImagePlus className="size-5 text-brand-500" /><span className="flex-1">{classForm.image_url ? "Class image selected" : "Upload class image"}</span><input type="file" accept="image/*" className="sr-only" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; try { await handleClassImageUpload(file); } catch (error: any) { alert(error.message || "Image upload failed."); } }} /></label>{classForm.image_url && <img src={classForm.image_url} alt="Selected class preview" className="h-32 w-full rounded-lg object-cover md:col-span-2" />}<div className="flex gap-2 md:col-span-2"><button type="submit" className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">{editingClass ? "Save changes" : "Create class"}</button><button type="button" onClick={() => setShowClassForm(false)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700">Cancel</button></div></form>}
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              <div className="contents">
                 {classes.map((c) => {
                   const classRegs = registrations.filter((r) => r.class_id === c.id);
                   const paidCount = classRegs.filter((r) => r.paid).length;
                   return (
-                    <div key={c.id} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                      <h3 className="font-bold text-gray-900">{c.title}</h3>
+                    <div key={c.id} className="flex min-w-0 flex-col gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+                      <h3 className="break-words font-bold text-gray-900">{c.title}</h3>
                       <p className="text-sm text-gray-500 mt-1">{formatDate(c.class_date)}</p>
                       <div className="flex gap-4 mt-3 text-sm">
                         <span className="text-gray-600">{classRegs.length} registered</span>
                         <span className="text-green-600">{paidCount} paid</span>
   <span className="font-medium">{formatCurrency(c.price, c.currency)}</span>
   </div>
-  <div className="mt-4 flex items-center justify-between gap-3">
+  <div className="flex flex-col gap-3 border-t border-gray-200 pt-3 sm:flex-row sm:items-end sm:justify-between">
     <span className={`text-xs font-semibold ${c.archived_at ? "text-gray-500" : "text-green-600"}`}>{c.archived_at ? "Archived" : "Published on homepage"}</span>
-    <button onClick={() => toggleJoinEnabled(c)} className={`rounded-lg px-3 py-2 text-xs font-semibold ${c.join_enabled ? "bg-brand-500 text-white" : "border border-gray-200 bg-white text-gray-700"}`}>{c.join_enabled ? "Join active" : "Enable Join"}</button>
-    <button onClick={() => copyClassLink(c)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500 hover:text-brand-600">Copy link</button>
-    <button onClick={() => toggleClassArchive(c)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500 hover:text-brand-600">{c.archived_at ? "Republish" : "Archive class"}</button>
-    <button onClick={() => startClassEdit(c)} aria-label={`Edit ${c.title}`} className="rounded-lg border border-gray-200 bg-white p-2 text-gray-700 hover:border-brand-500"><Pencil className="size-4" /></button>
-    <button onClick={() => deleteClass(c)} aria-label={`Delete ${c.title}`} className="rounded-lg border border-red-100 bg-white p-2 text-red-600 hover:bg-red-50"><Trash2 className="size-4" /></button>
+    <div className="flex flex-wrap gap-2">
+      <button onClick={() => toggleJoinEnabled(c)} className={`rounded-lg px-3 py-2 text-xs font-semibold ${c.join_enabled ? "bg-brand-500 text-white" : "border border-gray-200 bg-white text-gray-700"}`}>{c.join_enabled ? "Join active" : "Enable Join"}</button>
+      <button onClick={() => copyClassLink(c)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500 hover:text-brand-600">Copy link</button>
+      <button onClick={() => toggleClassArchive(c)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-brand-500 hover:text-brand-600">{c.archived_at ? "Republish" : "Archive class"}</button>
+      <button onClick={() => startClassEdit(c)} aria-label={`Edit ${c.title}`} className="rounded-lg border border-gray-200 bg-white p-2 text-gray-700 hover:border-brand-500"><Pencil className="size-4" /></button>
+      <button onClick={() => deleteClass(c)} aria-label={`Delete ${c.title}`} className="rounded-lg border border-red-100 bg-white p-2 text-red-600 hover:bg-red-50"><Trash2 className="size-4" /></button>
+    </div>
   </div>
   </div>
                   );
